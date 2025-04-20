@@ -1,15 +1,40 @@
-# Sistema de Inventario
+# 🧾 Sistema de Inventario con Django + React + QR
 
-## Pasos para ejecutar
+Este sistema permite gestionar productos de forma eficiente mediante un panel administrativo web y una interfaz amigable. Además, cada producto genera autom
+áticamente un **código QR**, que puede ser escaneado para acceder rápidamente a su información.
 
-1. Instala Docker y Docker Compose
-2. Descomprime este archivo ZIP
-3. Abre terminal en la carpeta raíz del proyecto
-4. Ejecuta:
+---
+
+## 🚀 Tecnologías Utilizadas
+
+- ⚙️ **Backend:** Django 3.2 + Django REST Framework
+- 🎨 **Frontend:** React 17 + Axios
+- 🐘 **Base de Datos:** PostgreSQL
+- 📦 **Contenedores:** Docker + Docker Compose
+- 📷 **Código QR:** Librerías `qrcode` y `Pillow`
+
+---
+
+## 🧰 Funcionalidades Principales
+
+- Crear, listar, editar y eliminar productos.
+- Cada producto tiene un `código único` y un `código QR` generado automáticamente.
+- Acceso al panel de administración (`/admin`) para gestionar todo el inventario.
+- Código QR descargable como imagen.
+- Frontend moderno y responsive.
+- Separación completa entre frontend y backend.
+
+---
+
+## ⚙️ Instalación y Uso
+
+1. Asegúrate de tener instalado:
+
+   - Docker Desktop
+   - Git (opcional si ya descargaste el ZIP)
+
+2. Clona o descarga este repositorio:
 
 ```bash
-docker-compose up --build
-```
-
-- Backend (Django): http://localhost:8000
-- Frontend (React): http://localhost:3000
+git clone https://github.com/Luiggi1895/inventory_system.git
+cd inventory_system
