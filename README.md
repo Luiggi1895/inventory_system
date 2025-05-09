@@ -17,6 +17,7 @@ Este sistema permite gestionar productos de forma eficiente mediante un panel ad
 
 ## 🧰 Funcionalidades Principales
 
+
 - Crear, listar, editar y eliminar productos.
 - Cada producto tiene un `código único` y un `código QR` generado automáticamente.
 - Acceso al panel de administración (`/admin`) para gestionar todo el inventario.
