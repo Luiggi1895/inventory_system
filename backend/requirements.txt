@@ -4,3 +4,7 @@ psycopg2-binary
 qrcode
 Pillow
 django-cors-headers
+numpy
+pandas
+tensorflow
+scikit-learn

@@ -1,113 +1,179 @@
 import React, { useEffect, useState } from 'react';
 
+function Login({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const iniciarSesion = () => {
+    fetch('http://127.0.0.1:8000/api/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.access) {
+          localStorage.setItem('access', data.access);
+          localStorage.setItem('refresh', data.refresh);
+          onLogin();
+        } else {
+          alert('Credenciales inválidas');
+        }
+      })
+      .catch(() => alert('Error al iniciar sesión'));
+  };
+
+  return (
+    <div>
+      <h2>Iniciar Sesión</h2>
+      <input placeholder="Usuario" value={username} onChange={e => setUsername(e.target.value)} />
+      <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)} />
+      <button onClick={iniciarSesion}>Entrar</button>
+    </div>
+  );
+}
+
 function App() {
+  const [autenticado, setAutenticado] = useState(!!localStorage.getItem('access'));
+  const [productoId, setProductoId] = useState('');
+  const [tipo, setTipo] = useState('');
+  const [cantidad, setCantidad] = useState('');
   const [productos, setProductos] = useState([]);
+  const [movimientos, setMovimientos] = useState([]);
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [codigo, setCodigo] = useState('');
-  const [movimientos, setMovimientos] = useState([]);
+  const [predicciones, setPredicciones] = useState({});
   const [resumen, setResumen] = useState({
     totalProductos: 0,
     totalEntradas: 0,
     totalSalidas: 0,
     alertas: 0,
+    prediccionesCriticas: []
   });
-  
-  useEffect(() => {
-    fetch('http://localhost:8000/api/resumen/')
-      .then(res => res.json())
-      .then(data => setResumen(data))
-      .catch(err => console.error('Error al cargar resumen:', err));
-  }, []);
-  
 
-  // Cargar productos al iniciar
-  useEffect(() => {
-    fetch('http://localhost:8000/api/productos/')
-      .then(response => response.json())
-      .then(data => setProductos(data))
-      .catch(error => console.error('Error:', error));
-  }, []);
-  useEffect(() => {
-    fetch('http://localhost:8000/api/movimientos/')
+  const headersAuth = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + localStorage.getItem('access')
+  };
+
+  const cargarDatos = () => {
+    fetch('http://localhost:8000/api/productos/', { headers: headersAuth })
       .then(res => res.json())
-      .then(data => setMovimientos(data))
-      .catch(err => console.error('Error al cargar movimientos:', err));
-  }, []);
-  
-  // Enviar producto nuevo
+      .then(data => setProductos(data));
+
+    fetch('http://localhost:8000/api/movimientos/', { headers: headersAuth })
+      .then(res => res.json())
+      .then(data => setMovimientos(data));
+
+    fetch('http://localhost:8000/api/resumen/', { headers: headersAuth })
+      .then(res => res.json())
+      .then(data => setResumen(data));
+  };
+
+  useEffect(() => {
+    if (autenticado) {
+      cargarDatos();
+    }
+  }, [autenticado]);
+
   const registrarProducto = () => {
-    const nuevoProducto = {
-      nombre,
-      descripcion,
-      codigo,
-    };
+    const nuevoProducto = { nombre, descripcion, codigo };
 
     fetch('http://localhost:8000/api/productos/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headersAuth,
       body: JSON.stringify(nuevoProducto)
     })
-      .then(response => response.json())
+      .then(res => res.json())
       .then(data => {
         alert('Producto registrado');
-        setProductos(prev => [...prev, data]); // actualizar tabla
+        setProductos(prev => [...prev, data]);
         setNombre('');
         setDescripcion('');
         setCodigo('');
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert('Error al registrar');
       });
   };
-  const cardStyle = {
-    backgroundColor: 'white',
-    borderRadius: '15px',
-    padding: '20px',
-    minWidth: '200px',
-    textAlign: 'center',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+
+  const registrarMovimiento = () => {
+    const nuevoMovimiento = {
+      producto: productoId,
+      tipo,
+      cantidad: parseInt(cantidad)
+    };
+
+    fetch('http://localhost:8000/api/movimientos/', {
+      method: 'POST',
+      headers: headersAuth,
+      body: JSON.stringify(nuevoMovimiento)
+    })
+      .then(res => res.json())
+      .then(() => {
+        alert('Movimiento registrado');
+        setProductoId('');
+        setTipo('');
+        setCantidad('');
+        cargarDatos();
+      });
   };
-  
+
+  const predecirStock = (productoId) => {
+    fetch(`http://localhost:8000/api/predecir_stock/${productoId}/`, {
+      headers: headersAuth
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.prediccion !== undefined) {
+          setPredicciones(prev => ({ ...prev, [productoId]: data.prediccion }));
+        } else {
+          alert(data.error || 'Error al predecir');
+        }
+      });
+  };
+
+  if (!autenticado) return <Login onLogin={() => setAutenticado(true)} />;
+
   return (
-    
     <div>
       <h1>Sistema de Inventario</h1>
 
-      <h2 style={{ textAlign: 'center', marginTop: '30px' }}>Resumen del Inventario</h2>
-<div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '30px' }}>
-  <div style={cardStyle}>
-    <h3>Total de Productos</h3>
-    <p>{resumen.totalProductos}</p>
-  </div>
-  <div style={cardStyle}>
-    <h3>Total de Entradas</h3>
-    <p>{resumen.totalEntradas}</p>
-  </div>
-  <div style={cardStyle}>
-    <h3>Total de Salidas</h3>
-    <p>{resumen.totalSalidas}</p>
-  </div>
-  <div style={{ ...cardStyle, backgroundColor: '#ffe5e5', color: 'red' }}>
-    <h3>Alertas Activas</h3>
-    <p>{resumen.alertas}</p>
-  </div>
-</div>
+      <h2>Resumen del Inventario</h2>
+      <div style={{ display: 'flex', gap: '20px' }}>
+        <div>Total de Productos: {resumen.totalProductos}</div>
+        <div>Total de Entradas: {resumen.totalEntradas}</div>
+        <div>Total de Salidas: {resumen.totalSalidas}</div>
+        <div style={{ color: 'red' }}>Alertas: {resumen.alertas}</div>
+      </div>
 
+      <h3>Productos más críticos:</h3>
+      <ul>
+        {resumen.prediccionesCriticas.map(p => (
+          <li key={p.id}>
+            {p.nombre}: 🧠 {p.prediccion} unidades estimadas
+          </li>
+        ))}
+      </ul>
 
       <h2>Registrar Producto</h2>
-      <label>Nombre:</label>
-      <input value={nombre} onChange={e => setNombre(e.target.value)} />
-      <label>Descripción:</label>
-      <input value={descripcion} onChange={e => setDescripcion(e.target.value)} />
-      <label>Código:</label>
-      <input value={codigo} onChange={e => setCodigo(e.target.value)} />
+      <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre" />
+      <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Descripción" />
+      <input value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="Código" />
       <button onClick={registrarProducto}>Registrar</button>
 
-      <hr />
+      <h2>Registrar Movimiento</h2>
+      <select value={productoId} onChange={e => setProductoId(e.target.value)}>
+        <option value="">Seleccione producto</option>
+        {productos.map(p => (
+          <option key={p.id} value={p.id}>{p.nombre}</option>
+        ))}
+      </select>
+      <select value={tipo} onChange={e => setTipo(e.target.value)}>
+        <option value="">Tipo</option>
+        <option value="entrada">Entrada</option>
+        <option value="salida">Salida</option>
+      </select>
+      <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} placeholder="Cantidad" />
+      <button onClick={registrarMovimiento}>Registrar Movimiento</button>
 
       <h2>Lista de Productos</h2>
       <table border="1">
@@ -118,6 +184,7 @@ function App() {
             <th>Código</th>
             <th>Stock</th>
             <th>QR</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -127,39 +194,39 @@ function App() {
               <td>{p.descripcion}</td>
               <td>{p.codigo}</td>
               <td>{p.stock}</td>
+              <td><img src={`http://localhost:8000${p.qr}`} alt="QR" width="80" /></td>
               <td>
-                <img src={`http://localhost:8000${p.qr}`} alt="QR" width="80" />
+                <button onClick={() => predecirStock(p.id)}>Predecir Stock</button>
+                {predicciones[p.id] && <div>🧠 {predicciones[p.id]}</div>}
               </td>
             </tr>
           ))}
         </tbody>
-        </table>
+      </table>
 
-<hr />
-
-<h2>Historial de Movimientos</h2>
-    <table border="1">
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Tipo</th>
-          <th>Cantidad</th>
-          <th>Fecha</th>
-        </tr>
-      </thead>
-      <tbody>
-        {movimientos.map(m => (
-          <tr key={m.id}>
-            <td>{m.producto}</td>
-            <td>{m.tipo}</td>
-            <td>{m.cantidad}</td>
-            <td>{new Date(m.fecha).toLocaleString()}</td>
+      <h2>Historial de Movimientos</h2>
+      <table border="1">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th>Cantidad</th>
+            <th>Fecha</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-  </div> // ✅ este es el único cierre del div raíz
-);
+        </thead>
+        <tbody>
+          {movimientos.map(m => (
+            <tr key={m.id}>
+              <td>{m.producto}</td>
+              <td>{m.tipo}</td>
+              <td>{m.cantidad}</td>
+              <td>{new Date(m.fecha).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export default App;

@@ -3,6 +3,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-123456'
 DEBUG = True
 ALLOWED_HOSTS = []
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
 INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
