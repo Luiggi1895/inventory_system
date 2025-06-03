@@ -3,3 +3,5 @@ djangorestframework
 psycopg2-binary
 qrcode
 Pillow
+django-cors-headers
+djangorestframework-simplejwt
