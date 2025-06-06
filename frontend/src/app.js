@@ -3,12 +3,14 @@ import Login from "./routes/Login";
 import Dashboard from "./routes/Dashboard";
 import Productos from "./routes/Productos";
 import EscanearQR from "./routes/EscanearQR";
+import Movimientos from './routes/Movimientos';
 // import PrivateRoute from "./components/PrivateRoute"; ← puedes comentar esto
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/movimientos" element={<Movimientos />} />
         <Route path="/escanear" element={<EscanearQR />} />
         {/* ENTRADA DIRECTA A PRODUCTOS */}
         <Route path="/escanear" element={<EscanearQR />} />

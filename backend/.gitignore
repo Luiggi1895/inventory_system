@@ -1,22 +1,23 @@
-# Entorno de Python
+# ==== Python / Django ====
+*.pyc
 __pycache__/
-*.py[cod]
 *.sqlite3
+db.sqlite3
 
-# Entorno de Docker
-*.log
+# Entorno virtual
+venv/
+
+# Archivos generados
+backend/media/
+
+# ==== Node / React (solo los generados) ====
+frontend/node_modules/
+frontend/.cache/
+frontend/build/
+
+# ==== Configuración local y del sistema ====
 .env
-*.pid
-
-# Archivos de VSCode
 .vscode/
-
-# Archivos del sistema
+.idea/
 .DS_Store
 Thumbs.db
-
-# Node modules
-frontend/node_modules/
-
-# Archivos compilados de React
-frontend/build/
