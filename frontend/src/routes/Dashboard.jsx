@@ -1,59 +1,102 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Dashboard = () => {
-  const [data, setData] = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [productoSeleccionado, setProductoSeleccionado] = useState('');
+  const [prediccion, setPrediccion] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
 
   useEffect(() => {
+    fetchProductos();
     fetchDashboard();
   }, []);
 
-  const fetchDashboard = async () => {
-    try {
-      const res = await axios.get('http://localhost:8000/api/dashboard/');
-      setData(res.data);
-    } catch (err) {
-      console.error('Error al cargar dashboard', err);
+  useEffect(() => {
+    if (productoSeleccionado) {
+      fetchPrediccion(productoSeleccionado);
     }
+  }, [productoSeleccionado]);
+
+  const fetchProductos = async () => {
+    const res = await axios.get('http://localhost:8000/api/productos/');
+    setProductos(res.data);
   };
 
-  if (!data) return <p className="p-4">Cargando dashboard...</p>;
+  const fetchDashboard = async () => {
+    const res = await axios.get('http://localhost:8000/api/dashboard/');
+    setDashboard(res.data);
+  };
+
+  const fetchPrediccion = async (productoId) => {
+    const res = await axios.get(`http://localhost:8000/api/prediccion/${productoId}/`);
+    setPrediccion(res.data);
+  };
+
+  const datosGrafico = prediccion?.valores?.map((valor, index) => ({
+    name: `Día ${index + 1}`,
+    valor: valor
+  }));
+
+  const nombreProducto = productos.find(p => p.id === parseInt(productoSeleccionado))?.nombre;
 
   return (
-    <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold mb-4">📊 Resumen General del Inventario</h2>
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">📊 Predicción de demanda</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="border p-4 shadow rounded">
-          <h3 className="font-bold text-lg">Total Productos</h3>
-          <p className="text-2xl">{data.total_productos}</p>
+      <label className="block mb-2 font-semibold">Producto:</label>
+      <select
+        className="border border-gray-300 p-2 rounded mb-6"
+        value={productoSeleccionado}
+        onChange={(e) => setProductoSeleccionado(e.target.value)}
+      >
+        <option value="">-- Selecciona uno --</option>
+        {productos.map((prod) => (
+          <option key={prod.id} value={prod.id}>
+            {prod.nombre}
+          </option>
+        ))}
+      </select>
+
+      {prediccion?.valores && prediccion.valores.length > 0 && (
+        <div className="mb-8 bg-white p-4 rounded shadow">
+          <h3 className="text-lg font-bold mb-2">📦 Producto: {nombreProducto}</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={datosGrafico}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="valor" fill="#3B82F6" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <div className="border p-4 shadow rounded">
-          <h3 className="font-bold text-lg">Entradas Registradas</h3>
-          <p className="text-2xl text-green-600">+{data.total_entradas}</p>
-        </div>
-        <div className="border p-4 shadow rounded">
-          <h3 className="font-bold text-lg">Salidas Registradas</h3>
-          <p className="text-2xl text-red-600">-{data.total_salidas}</p>
-        </div>
+      )}
+
+      <div className="mb-6">
+        <h2 className="text-xl font-bold mt-8 mb-2">🔔 Alertas</h2>
+        {dashboard?.bajo_stock?.map((item, i) => (
+          <p key={i}>⚠️ Producto <strong>{item.nombre}</strong> con {item.stock} unidades</p>
+        ))}
+        {dashboard?.criticos_prediccion?.map((item, i) => (
+          <p key={i}>⚠️ Predicción crítica: <strong>{item.nombre}</strong> → {item.prediccion_final} unidades</p>
+        ))}
       </div>
 
       <div>
-        <h3 className="text-xl font-bold mt-6">⚠️ Productos con bajo stock</h3>
-        <ul className="list-disc pl-5 mt-2">
-          {data.bajo_stock.length === 0 ? <li>Sin alertas.</li> : data.bajo_stock.map((p, i) => (
-            <li key={i}>{p.nombre} – {p.stock} unidades</li>
-          ))}
-        </ul>
-      </div>
-
-      <div>
-        <h3 className="text-xl font-bold mt-6">🧠 Productos críticos según predicción</h3>
-        <ul className="list-disc pl-5 mt-2">
-          {data.criticos_prediccion.length === 0 ? <li>No hay predicciones críticas.</li> : data.criticos_prediccion.map((p, i) => (
-            <li key={i}>{p.nombre} – predicción: {p.prediccion_final.toFixed(2)} unidades</li>
-          ))}
-        </ul>
+        <h2 className="text-xl font-bold mb-2">🔍 Detalle de productos en alerta</h2>
+        {dashboard?.bajo_stock?.map((item, i) => (
+          <div key={i} className="mb-2">
+            <strong>{item.nombre}</strong><br />
+            Stock: {item.stock}
+          </div>
+        ))}
+        {dashboard?.criticos_prediccion?.map((item, i) => (
+          <div key={i} className="mb-2">
+            <strong>{item.nombre}</strong><br />
+            Predicción: {item.prediccion_final}
+          </div>
+        ))}
       </div>
     </div>
   );

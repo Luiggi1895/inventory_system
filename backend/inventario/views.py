@@ -10,7 +10,7 @@ from .models import Movimiento, Producto
 from rest_framework import viewsets
 from .serializers import ProductoSerializer, MovimientoSerializer
 from django.db.models import Sum
-import random 
+import random
 
 
 class ProductoViewSet(viewsets.ModelViewSet):
@@ -23,9 +23,17 @@ class ProductoViewSet(viewsets.ModelViewSet):
             return Producto.objects.filter(codigo_interno=codigo_interno)
         return Producto.objects.all()
 
+
 class MovimientoViewSet(viewsets.ModelViewSet):
     queryset = Movimiento.objects.all()
     serializer_class = MovimientoSerializer
+
+    def get_queryset(self):
+        producto_id = self.request.query_params.get('producto')
+        if producto_id:
+            return Movimiento.objects.filter(producto_id=producto_id).order_by('-fecha')
+        return Movimiento.objects.all().order_by('-fecha')
+
 
 @api_view(['GET'])
 def predecir_stock(request, producto_id):
@@ -34,25 +42,27 @@ def predecir_stock(request, producto_id):
         movimientos = Movimiento.objects.filter(producto=producto).order_by('fecha')
 
         if movimientos.count() < 10:
-            return Response({"error": "No hay suficientes datos para predecir"}, status=400)
+            return Response({
+                "valores": [],
+                "mensaje": "No hay suficientes datos para predecir. Registra al menos 10 movimientos."
+            }, status=200)
 
-        # Crear serie temporal acumulada
-        data = []
+        # Acumular stock por fecha
         stock = 0
-        fechas = []
-        for m in movimientos:
-            stock += m.cantidad if m.tipo == 'entrada' else -m.cantidad
-            data.append(stock)
-            fechas.append(m.fecha.date())
+        registros = []
+        for mov in movimientos:
+            stock += mov.cantidad if mov.tipo == 'entrada' else -mov.cantidad
+            registros.append({'fecha': mov.fecha.date(), 'stock': stock})
 
-        df = pd.DataFrame({'fecha': fechas, 'stock': data})
-        df = df.groupby('fecha').sum().reset_index()
+        df = pd.DataFrame(registros).groupby('fecha').last().reset_index()
+        df['fecha'] = pd.to_datetime(df['fecha'])
+        df = df.set_index('fecha').asfreq('D', method='pad').reset_index()
 
-        # Preprocesamiento
+        # Normalización
         scaler = MinMaxScaler()
         serie = scaler.fit_transform(df[['stock']])
 
-        # Crear secuencia para LSTM
+        # Crear secuencias
         X, y = [], []
         secuencia = 5
         for i in range(secuencia, len(serie)):
@@ -60,14 +70,20 @@ def predecir_stock(request, producto_id):
             y.append(serie[i])
         X, y = np.array(X), np.array(y)
 
-        # Entrenar modelo LSTM
+        if X.size == 0 or len(X.shape) < 3:
+            return Response({
+                "valores": [],
+                "mensaje": "No hay suficientes datos procesables para predecir."
+            }, status=200)
+
+        # Modelo LSTM
         model = Sequential()
         model.add(LSTM(50, activation='relu', input_shape=(X.shape[1], X.shape[2])))
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mse')
         model.fit(X, y, epochs=50, verbose=0)
 
-        # Usar últimos datos para predecir los próximos 5 días
+        # Predicción de próximos 5 días
         pred_input = serie[-secuencia:].reshape(1, secuencia, 1)
         predicciones = []
         for _ in range(5):
@@ -84,8 +100,9 @@ def predecir_stock(request, producto_id):
         })
 
     except Producto.DoesNotExist:
-        return Response({"error": "Producto no encontrado"}, status=404)    
-    
+        return Response({"error": "Producto no encontrado"}, status=404)
+
+
 @api_view(['GET'])
 def dashboard_metrics(request):
     total_productos = Producto.objects.count()
@@ -103,11 +120,13 @@ def dashboard_metrics(request):
                 "prediccion_final": simulacion
             })
 
+    productos = Producto.objects.values('id', 'nombre')
+
     return Response({
         "total_productos": total_productos,
         "total_entradas": total_entradas,
         "total_salidas": total_salidas,
         "bajo_stock": list(bajo_stock),
-        "criticos_prediccion": criticos_prediccion
+        "criticos_prediccion": criticos_prediccion,
+        "productos": list(productos)
     })
-    

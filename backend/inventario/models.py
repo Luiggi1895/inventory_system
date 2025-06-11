@@ -11,7 +11,7 @@ class Producto(models.Model):
     codigo_interno = models.CharField(max_length=50, unique=True, default="TEMP")
     stock = models.PositiveIntegerField(default=0)
     fecha_vencimiento = models.DateField(null=True, blank=True)  # ← NUEVO
-    categoria = models.CharField(max_length=100, blank=True)     # ← NUEVO
+    categoria = models.CharField(max_length=100, blank=True, null=True)     # ← NUEVO
     proveedor = models.CharField(max_length=100, blank=True)     # ← NUEVO
     qr = models.ImageField(upload_to='qr_codes', blank=True, null=True)
 
