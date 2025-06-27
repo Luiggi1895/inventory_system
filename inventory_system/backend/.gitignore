@@ -1,0 +1,22 @@
+# Entorno de Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Entorno de Docker
+*.log
+.env
+*.pid
+
+# Archivos de VSCode
+.vscode/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Node modules
+frontend/node_modules/
+
+# Archivos compilados de React
+frontend/build/

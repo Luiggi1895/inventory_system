@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './index.css';
 import App from './app'; // ✅ Aquí importamos el App real
 
 ReactDOM.render(

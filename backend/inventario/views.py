@@ -1,132 +1,159 @@
-import numpy as np
-import pandas as pd
-from datetime import timedelta
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from sklearn.preprocessing import MinMaxScaler
+# inventario/views.py
+
+import os
+from django.db.models import Sum
+from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Movimiento, Producto
-from rest_framework import viewsets
+
+import joblib
+import numpy as np
+import pandas as pd
+from tensorflow.keras.models import load_model
+
+from .models import Producto, Movimiento
 from .serializers import ProductoSerializer, MovimientoSerializer
-from django.db.models import Sum
-import random
+
+# ————— RUTAS GLOBALES —————
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH  = os.path.join(BASE_DIR, 'models', 'stock_model.h5')
+SCALER_PATH = os.path.join(BASE_DIR, 'models', 'stock_scaler.pkl')
+
+# Cargamos el scaler y el modelo (inferencia only)
+scaler = joblib.load(SCALER_PATH)
+model  = load_model(MODEL_PATH, compile=False)
+# ——————————————————————
 
 
 class ProductoViewSet(viewsets.ModelViewSet):
-    queryset = Producto.objects.all()
+    """
+    CRUD de productos.
+    """
+    queryset         = Producto.objects.all()
     serializer_class = ProductoSerializer
 
     def get_queryset(self):
-        codigo_interno = self.request.query_params.get('codigo_interno')
-        if codigo_interno:
-            return Producto.objects.filter(codigo_interno=codigo_interno)
-        return Producto.objects.all()
+        codigo = self.request.query_params.get('codigo_interno')
+        if codigo:
+            return self.queryset.filter(codigo_interno=codigo)
+        return self.queryset
+
+    def get_serializer_context(self):
+        """
+        Para que ProductoSerializer.get_qr_url
+        pueda usar request.build_absolute_uri().
+        """
+        return {'request': self.request}
 
 
 class MovimientoViewSet(viewsets.ModelViewSet):
-    queryset = Movimiento.objects.all()
+    """
+    CRUD de movimientos: al crear, se actualiza stock
+    gracias al método save() en el modelo Movimiento.
+    """
+    queryset         = Movimiento.objects.all().order_by('-fecha')
     serializer_class = MovimientoSerializer
 
     def get_queryset(self):
-        producto_id = self.request.query_params.get('producto')
-        if producto_id:
-            return Movimiento.objects.filter(producto_id=producto_id).order_by('-fecha')
-        return Movimiento.objects.all().order_by('-fecha')
+        pid = self.request.query_params.get('producto')
+        qs  = self.queryset
+        if pid:
+            qs = qs.filter(producto_id=pid)
+        return qs
+
+    def get_serializer_context(self):
+        # Aunque el serializer no lo necesite para URL,
+        # es buena práctica incluírlo por consistencia.
+        return {'request': self.request}
 
 
 @api_view(['GET'])
 def predecir_stock(request, producto_id):
+    """
+    Inferencia de stock para los próximos 5 días usando un LSTM preentrenado.
+    """
     try:
         producto = Producto.objects.get(id=producto_id)
-        movimientos = Movimiento.objects.filter(producto=producto).order_by('fecha')
-
-        if movimientos.count() < 10:
-            return Response({
-                "valores": [],
-                "mensaje": "No hay suficientes datos para predecir. Registra al menos 10 movimientos."
-            }, status=200)
-
-        # Acumular stock por fecha
-        stock = 0
-        registros = []
-        for mov in movimientos:
-            stock += mov.cantidad if mov.tipo == 'entrada' else -mov.cantidad
-            registros.append({'fecha': mov.fecha.date(), 'stock': stock})
-
-        df = pd.DataFrame(registros).groupby('fecha').last().reset_index()
-        df['fecha'] = pd.to_datetime(df['fecha'])
-        df = df.set_index('fecha').asfreq('D', method='pad').reset_index()
-
-        # Normalización
-        scaler = MinMaxScaler()
-        serie = scaler.fit_transform(df[['stock']])
-
-        # Crear secuencias
-        X, y = [], []
-        secuencia = 5
-        for i in range(secuencia, len(serie)):
-            X.append(serie[i-secuencia:i])
-            y.append(serie[i])
-        X, y = np.array(X), np.array(y)
-
-        if X.size == 0 or len(X.shape) < 3:
-            return Response({
-                "valores": [],
-                "mensaje": "No hay suficientes datos procesables para predecir."
-            }, status=200)
-
-        # Modelo LSTM
-        model = Sequential()
-        model.add(LSTM(50, activation='relu', input_shape=(X.shape[1], X.shape[2])))
-        model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mse')
-        model.fit(X, y, epochs=50, verbose=0)
-
-        # Predicción de próximos 5 días
-        pred_input = serie[-secuencia:].reshape(1, secuencia, 1)
-        predicciones = []
-        for _ in range(5):
-            pred = model.predict(pred_input, verbose=0)
-            predicciones.append(pred[0][0])
-            pred_input = np.append(pred_input[:, 1:, :], [[pred]], axis=1)
-
-        pred_final = scaler.inverse_transform(np.array(predicciones).reshape(-1, 1))
-
-        return Response({
-            "producto": producto.nombre,
-            "prediccion_dias": 5,
-            "valores": [round(float(p), 2) for p in pred_final.reshape(-1)]
-        })
-
     except Producto.DoesNotExist:
         return Response({"error": "Producto no encontrado"}, status=404)
+
+    movs = Movimiento.objects.filter(producto=producto).order_by('fecha')
+    if movs.count() < 10:
+        return Response({
+            "valores": [],
+            "mensaje": "No hay suficientes datos (mínimo 10 movimientos)."
+        })
+
+    # Reconstruir serie histórica de stock
+    stock     = 0
+    registros = []
+    for m in movs:
+        stock += m.cantidad if m.tipo == 'entrada' else -m.cantidad
+        registros.append({'fecha': m.fecha.date(), 'stock': stock})
+
+    df = pd.DataFrame(registros).groupby('fecha').last().reset_index()
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    df = df.set_index('fecha').asfreq('D', method='pad').reset_index()
+
+    # Normalizar
+    serie_norm = scaler.transform(df[['stock']])
+
+    # Última ventana
+    ventana   = 5
+    last_seq  = serie_norm[-ventana:].reshape(1, ventana, 1)
+
+    # Predecir 5 días
+    preds_norm = []
+    seq        = last_seq.copy()
+    for _ in range(5):
+        p = model.predict(seq, verbose=0)  # forma (1,1)
+        preds_norm.append(p[0][0])
+        p3   = p.reshape(1, 1, 1)
+        seq  = np.concatenate((seq[:, 1:, :], p3), axis=1)
+
+    # Des-normalizar
+    preds_real = scaler.inverse_transform(
+        np.array(preds_norm).reshape(-1, 1)
+    ).flatten()
+
+    return Response({
+        "producto": producto.nombre,
+        "prediccion_dias": 5,
+        "valores": [round(float(v), 2) for v in preds_real]
+    })
 
 
 @api_view(['GET'])
 def dashboard_metrics(request):
+    """
+    Métricas del Dashboard: totales, bajo stock y productos críticos.
+    """
     total_productos = Producto.objects.count()
-    total_entradas = Movimiento.objects.filter(tipo='entrada').aggregate(Sum('cantidad'))['cantidad__sum'] or 0
-    total_salidas = Movimiento.objects.filter(tipo='salida').aggregate(Sum('cantidad'))['cantidad__sum'] or 0
+    total_entradas  = Movimiento.objects.filter(tipo='entrada') \
+                         .aggregate(total=Sum('cantidad'))['total'] or 0
+    total_salidas   = Movimiento.objects.filter(tipo='salida') \
+                         .aggregate(total=Sum('cantidad'))['total'] or 0
 
-    bajo_stock = Producto.objects.filter(stock__lt=10).values('nombre', 'stock')
+    bajo_stock = list(
+        Producto.objects.filter(stock__lt=10)
+                        .values('nombre', 'stock')
+    )
 
-    criticos_prediccion = []
-    for producto in Producto.objects.all():
-        simulacion = producto.stock - random.randint(5, 15)
-        if simulacion < 10:
-            criticos_prediccion.append({
-                "nombre": producto.nombre,
-                "prediccion_final": simulacion
-            })
-
-    productos = Producto.objects.values('id', 'nombre')
+    # Simple simulación de alertas críticas
+    import random
+    random.seed(42)
+    criticos = []
+    for p in Producto.objects.all():
+        sim = p.stock - random.randint(5, 15)
+        if sim < 10:
+            criticos.append({"nombre": p.nombre, "prediccion_final": sim})
 
     return Response({
         "total_productos": total_productos,
         "total_entradas": total_entradas,
         "total_salidas": total_salidas,
-        "bajo_stock": list(bajo_stock),
-        "criticos_prediccion": criticos_prediccion,
-        "productos": list(productos)
+        "bajo_stock": bajo_stock,
+        "criticos_prediccion": criticos,
+        # Para poblar el dropdown de Predicción
+        "productos": list(Producto.objects.values('id', 'nombre'))
     })

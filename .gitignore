@@ -1,1 +1,31 @@
-node_modules
+# ── Python ─────────────────────────────────────────────────────────
+# byte-compiled
+*.py[cod]
+__pycache__/
+
+# virtualenv
+backend/venv/
+
+# Entornos dotenv
+.env
+
+# Django
+# tu bbdd sqlite (si la usas)
+backend/db.sqlite3
+# media uploads
+backend/media/
+
+# ── Node / Frontend ────────────────────────────────────────────────
+# todos los node_modules
+node_modules/
+
+# Si quieres ser más explícito:
+frontend/node_modules/
+
+# ── Editor / OS ───────────────────────────────────────────────────
+# VSCode
+.vscode/
+# macOS
+.DS_Store
+# logs
+*.log
