@@ -5,3 +5,5 @@ qrcode
 Pillow
 django-cors-headers
 djangorestframework-simplejwt
+pandas
+numpy

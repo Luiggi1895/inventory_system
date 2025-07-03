@@ -12,7 +12,7 @@ class Producto(models.Model):
     fecha_vencimiento = models.DateField(null=True, blank=True)
     categoria = models.CharField(max_length=100, blank=True, null=True)
     proveedor = models.CharField(max_length=100, blank=True, null=True)
-    almacen           = models.CharField(max_length=100, default='principal')
+    almacen = models.CharField(max_length=100, default='principal')
     qr = models.ImageField(upload_to='qr_codes', blank=True, null=True)
 
     def save(self, *args, **kwargs):
@@ -40,17 +40,10 @@ class Movimiento(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
     tipo = models.CharField(max_length=10, choices=TIPOS)
     cantidad = models.PositiveIntegerField(default=0)
-    almacen = models.CharField(max_length=100, blank=True, default='')  # NUESTRO NUEVO CAMPO
-    fecha = models.DateTimeField(auto_now_add=True)  # Fecha y hora del movimiento
+    almacen = models.CharField(max_length=100, blank=True, default='')
+    fecha = models.DateTimeField(auto_now_add=True)
 
-    def save(self, *args, **kwargs):
-        # Ajustar el stock del producto
-        if self.tipo == 'entrada':
-            self.producto.stock += self.cantidad
-        else:  # 'salida'
-            self.producto.stock -= self.cantidad
-        self.producto.save()
-        super().save(*args, **kwargs)
+    # Hemos quitado el override de save() para que no ajuste el stock aquí
 
     def __str__(self):
         return f"{self.tipo.title()} de {self.cantidad} unidades de {self.producto.nombre}"

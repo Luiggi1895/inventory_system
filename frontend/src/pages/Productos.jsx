@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
+import MovimientoModal from '../components/MovimientoModal';
 
-const Productos = () => {
+export default function Productos() {
   const [productos, setProductos] = useState([]);
   const [editandoId, setEditandoId] = useState(null);
   const [formData, setFormData] = useState({
@@ -14,20 +15,23 @@ const Productos = () => {
     almacen: 'principal',
   });
   const [predicciones, setPredicciones] = useState({});
-  const [movimientos, setMovimientos] = useState([]);
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [productoSeleccionado, setProductoSeleccionado] = useState('');
+  const [modalMov, setModalMov] = useState({
+    abierto: false,
+    nombre: '',
+    movimientos: [],
+  });
 
+  // Carga inicial
   useEffect(() => {
     fetchProductos();
   }, []);
 
   const fetchProductos = async () => {
     try {
-      const { data } = await axios.get('http://localhost:8000/api/productos/');
+      const { data } = await api.get('/productos/');
       setProductos(data);
-    } catch (error) {
-      console.error('Error al obtener productos:', error);
+    } catch (err) {
+      console.error('Error cargando productos', err);
     }
   };
 
@@ -39,16 +43,11 @@ const Productos = () => {
     e.preventDefault();
     try {
       if (editandoId) {
-        await axios.put(
-          `http://localhost:8000/api/productos/${editandoId}/`,
-          formData
-        );
+        await api.put(`/productos/${editandoId}/`, formData);
       } else {
-        await axios.post(
-          'http://localhost:8000/api/productos/',
-          formData
-        );
+        await api.post('/productos/', formData);
       }
+      setEditandoId(null);
       setFormData({
         nombre: '',
         descripcion: '',
@@ -58,61 +57,37 @@ const Productos = () => {
         fecha_vencimiento: '',
         almacen: 'principal',
       });
-      setEditandoId(null);
       fetchProductos();
-    } catch (error) {
-      console.error('Error al registrar/editar producto:', error);
-    }
-  };
-
-  const predecirStock = async productoId => {
-    try {
-      const res = await axios.get(
-        `http://localhost:8000/api/prediccion/${productoId}/`
-      );
-      setPredicciones(prev => ({ ...prev, [productoId]: res.data }));
-    } catch (error) {
-      setPredicciones(prev => ({
-        ...prev,
-        [productoId]: { error: 'No se pudo predecir.' }
-      }));
-      console.error('Error al predecir stock:', error);
-    }
-  };
-
-  const eliminarProducto = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar "${nombre}"?`)) return;
-    try {
-      await axios.delete(`http://localhost:8000/api/productos/${id}/`);
-      fetchProductos();
-    } catch (error) {
-      console.error('Error al eliminar producto:', error);
-    }
-  };
-
-  const verMovimientos = async (productoId, nombre) => {
-    try {
-      const { data } = await axios.get(
-        `http://localhost:8000/api/movimientos/?producto=${productoId}`
-      );
-      setMovimientos(data);
-      setProductoSeleccionado(nombre);
-      setMostrarModal(true);
     } catch (err) {
-      console.error('Error al obtener movimientos:', err);
+      console.error('Error al guardar producto', err);
+    }
+  };
+
+  const predecirStock = async id => {
+    try {
+      const res = await api.get(`/prediccion/${id}/`);
+      setPredicciones(prev => ({ ...prev, [id]: res.data.valores }));
+    } catch (err) {
+      console.error('Error al predecir', err);
+      setPredicciones(prev => ({ ...prev, [id]: [] }));
+    }
+  };
+
+  const verMovimientos = async (id, nombre) => {
+    try {
+      const { data } = await api.get(`/movimientos/?producto=${id}`);
+      setModalMov({ abierto: true, nombre, movimientos: data });
+    } catch (err) {
+      console.error('Error al cargar movimientos', err);
     }
   };
 
   return (
     <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">Registrar Producto</h2>
-
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6"
-      >
+      {/* ====== Formulario ====== */}
+      <h2 className="text-xl font-bold mb-4">Registrar / Editar Producto</h2>
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
         <input
-          type="text"
           name="nombre"
           placeholder="Nombre"
           value={formData.nombre}
@@ -121,7 +96,6 @@ const Productos = () => {
           required
         />
         <input
-          type="text"
           name="descripcion"
           placeholder="Descripción"
           value={formData.descripcion}
@@ -129,13 +103,26 @@ const Productos = () => {
           className="border p-2"
         />
         <input
-          type="text"
           name="codigo_interno"
-          placeholder="Código Interno"
+          placeholder="Código interno"
           value={formData.codigo_interno}
           onChange={handleChange}
           className="border p-2"
           required
+        />
+        <input
+          name="categoria"
+          placeholder="Categoría"
+          value={formData.categoria}
+          onChange={handleChange}
+          className="border p-2"
+        />
+        <input
+          name="proveedor"
+          placeholder="Proveedor"
+          value={formData.proveedor}
+          onChange={handleChange}
+          className="border p-2"
         />
         <input
           type="date"
@@ -144,83 +131,55 @@ const Productos = () => {
           onChange={handleChange}
           className="border p-2"
         />
-        <input
-          type="text"
-          name="categoria"
-          placeholder="Categoría"
-          value={formData.categoria}
-          onChange={handleChange}
-          className="border p-2"
-        />
-        <input
-          type="text"
-          name="proveedor"
-          placeholder="Proveedor"
-          value={formData.proveedor}
-          onChange={handleChange}
-          className="border p-2"
-        />
-        <input
-          type="text"
+        <select
           name="almacen"
-          placeholder="Almacén"
           value={formData.almacen}
           onChange={handleChange}
           className="border p-2"
-        />
-
+        >
+          <option value="principal">Principal</option>
+        </select>
         <button
           type="submit"
-          className="bg-blue-500 text-white px-4 py-2 col-span-2"
+          className="bg-blue-500 text-white px-4 py-2 col-span-2 md:col-span-1"
         >
           {editandoId ? 'Actualizar' : 'Registrar'}
         </button>
       </form>
 
+      {/* ====== Tabla de productos ====== */}
       <h2 className="text-xl font-bold mb-4">Productos Registrados</h2>
-      <table className="min-w-full border border-gray-300 shadow-sm">
+      <table className="min-w-full border border-gray-300 shadow-sm mb-6">
         <thead className="bg-gray-200">
           <tr>
             <th className="p-3 border">Nombre</th>
-            <th className="p-3 border">Descripción</th>
-            <th className="p-3 border">Código Interno</th>
             <th className="p-3 border">Stock</th>
             <th className="p-3 border">Categoría</th>
-            <th className="p-3 border">Proveedor</th>
-            <th className="p-3 border">Vencimiento</th>
-            <th className="p-3 border">Almacén</th>
-            <th className="p-3 border">Código QR</th>
             <th className="p-3 border">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {productos.map((prod, idx) => (
-            <tr key={prod.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-              <td className="p-2 border text-center">{prod.nombre}</td>
-              <td className="p-2 border text-center">{prod.descripcion}</td>
-              <td className="p-2 border text-center">{prod.codigo_interno}</td>
-              <td className="p-2 border text-center">{prod.stock}</td>
-              <td className="p-2 border text-center">{prod.categoria}</td>
-              <td className="p-2 border text-center">{prod.proveedor}</td>
-              <td className="p-2 border text-center">{prod.fecha_vencimiento || '—'}</td>
-              <td className="p-2 border text-center">{prod.almacen}</td>
-              <td className="p-2 border text-center">
-                {prod.qr_url && <img src={prod.qr_url} alt="QR" width="80" className="mx-auto" />}                
-              </td>
-              <td className="p-2 border text-center space-y-1">
+          {productos.map((prod, i) => (
+            <tr key={prod.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+              <td className="p-2 border">{prod.nombre}</td>
+              <td className="p-2 border">{prod.stock}</td>
+              <td className="p-2 border">{prod.categoria}</td>
+              <td className="p-2 border space-y-1">
+                {/* 🧠 Predecir */}
                 <button
-                  className="bg-green-600 text-white px-2 py-1 rounded w-full"
                   onClick={() => predecirStock(prod.id)}
+                  className="bg-green-600 text-white px-2 py-1 rounded w-full"
                 >
                   🧠 Predecir
                 </button>
+
+                {/* ✏️ Editar */}
                 <button
-                  className="bg-yellow-500 text-white px-2 py-1 rounded w-full"
                   onClick={() => {
                     setEditandoId(prod.id);
                     setFormData({
                       nombre: prod.nombre,
-                      descripcion: prod.descripcion,
+                      descripcion: prod.descripcion || '',
                       codigo_interno: prod.codigo_interno,
                       categoria: prod.categoria || '',
                       proveedor: prod.proveedor || '',
@@ -228,42 +187,43 @@ const Productos = () => {
                       almacen: prod.almacen || 'principal',
                     });
                   }}
+                  className="bg-yellow-500 text-white px-2 py-1 rounded w-full"
                 >
                   ✏️ Editar
                 </button>
+
+                {/* 🗑️ Eliminar */}
                 <button
+                  onClick={() => {
+                    if (window.confirm(`¿Eliminar "${prod.nombre}"?`)) {
+                      api.delete(`/productos/${prod.id}/`).then(fetchProductos);
+                    }
+                  }}
                   className="bg-red-500 text-white px-2 py-1 rounded w-full"
-                  onClick={() => eliminarProducto(prod.id, prod.nombre)}
                 >
                   🗑️ Eliminar
                 </button>
+
+                {/* 📅 Movimientos */}
                 <button
-                  className="bg-indigo-500 text-white px-2 py-1 rounded w-full"
                   onClick={() => verMovimientos(prod.id, prod.nombre)}
+                  className="bg-indigo-500 text-white px-2 py-1 rounded w-full"
                 >
-                  📅 Ver Movimientos
+                  📅 Movimientos
                 </button>
 
-                {/* Bloque de Predicción */}
-                {predicciones[prod.id]?.valores && (
-                  <div className="mt-2 text-sm text-left">
-                    <strong>Próximos 5 días:</strong>
+                {/* Mostrar la predicción sólo para este producto */}
+                {predicciones[prod.id] && (
+                  <div className="mt-2 text-sm text-left bg-gray-50 p-2 rounded">
+                    <strong>Próximos días:</strong>
                     <ul className="list-disc ml-4">
-                      {predicciones[prod.id].valores.map((v, i) => (
-                        <li key={i}>Día {i + 1}: {v.toFixed(2)}</li>
+                      {predicciones[prod.id].map((v, idx) => (
+                        <li key={idx}>
+                          Día {idx + 1}: {v}
+                        </li>
                       ))}
                     </ul>
                   </div>
-                )}
-                {predicciones[prod.id]?.mensaje && (
-                  <p className="text-yellow-700 text-xs italic border-l-4 border-yellow-400 pl-2 mt-1">
-                    {predicciones[prod.id].mensaje}
-                  </p>
-                )}
-                {predicciones[prod.id]?.error && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {predicciones[prod.id].error}
-                  </p>
                 )}
               </td>
             </tr>
@@ -271,30 +231,13 @@ const Productos = () => {
         </tbody>
       </table>
 
-      {mostrarModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-lg w-full shadow-lg">
-            <h3 className="text-lg font-bold mb-2">Movimientos de: {productoSeleccionado}</h3>
-            <ul className="max-h-60 overflow-y-auto space-y-1 text-sm">
-              {movimientos.length > 0 ? (
-                movimientos.map((m, i) => (
-                  <li key={i}>
-                    {m.fecha_str} — {m.hora} — {m.tipo} — {m.cantidad} — {m.almacen}
-                  </li>
-                ))
-              ) : (
-                <li className="text-gray-500 italic">No hay movimientos registrados.</li>
-              )}
-            </ul>
-            <button
-              className="mt-4 bg-red-600 text-white px-4 py-2 rounded w-full"
-              onClick={() => setMostrarModal(false)}
-            >Cerrar</button>
-          </div>
-        </div>
-      )}
+      {/* ====== Modal de Movimientos ====== */}
+      <MovimientoModal
+        abierto={modalMov.abierto}
+        nombre={modalMov.nombre}
+        movimientos={modalMov.movimientos}
+        onCerrar={() => setModalMov({ abierto: false, nombre: '', movimientos: [] })}
+      />
     </div>
-  );
-};
-
-export default Productos;
+);
+}

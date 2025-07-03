@@ -17,7 +17,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             'categoria',
             'proveedor',
             'fecha_vencimiento',
-            'almacen',  
+            'almacen',
             'qr_url',
         ]
 
@@ -29,35 +29,38 @@ class ProductoSerializer(serializers.ModelSerializer):
 
 
 class MovimientoSerializer(serializers.ModelSerializer):
-    # ID para POST
+    # Para crear: se envía sólo el ID del producto
     producto = serializers.PrimaryKeyRelatedField(
         queryset=Producto.objects.all(),
         write_only=True
     )
-    # Sólo lectura
+    # Para leer: nombre legible del producto
     producto_nombre = serializers.CharField(
         source='producto.nombre',
         read_only=True
     )
-    fecha_str = serializers.SerializerMethodField()
-    hora      = serializers.SerializerMethodField()
+    # Fecha formateada y hora
+    fecha_str = serializers.SerializerMethodField(read_only=True)
+    hora      = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Movimiento
         fields = [
             'id',
-            'producto',         # ← para POST (ID del producto)
-            'producto_nombre',  # ← para GET (nombre)
+            'producto',         # ← ID para POST
+            'producto_nombre',  # ← Nombre para GET
             'tipo',
             'cantidad',
             'almacen',
-            'fecha_str',        # dd/mm/aaaa
-            'hora',             # HH:MM:SS
+            'fecha_str',        # ← dd/mm/aaaa
+            'hora',             # ← HH:MM:SS
         ]
         read_only_fields = ['id', 'producto_nombre', 'fecha_str', 'hora']
 
     def get_fecha_str(self, obj):
+        # Formatea la fecha del DateTimeField `fecha`
         return obj.fecha.strftime('%d/%m/%Y')
 
     def get_hora(self, obj):
+        # Extrae la hora del DateTimeField `fecha`
         return obj.fecha.strftime('%H:%M:%S')

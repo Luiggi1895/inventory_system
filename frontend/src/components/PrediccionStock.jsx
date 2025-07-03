@@ -1,6 +1,6 @@
 // src/components/PrediccionStock.jsx
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -10,15 +10,30 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
+import api from '../services/api';
 
-export default function PrediccionStock({
-  productos,
-  productoSeleccionado,
-  valores,
-  onSelect,
-  onBuscar
-}) {
-  const data = (valores || []).map((v, i) => ({
+export default function PrediccionStock({ productos }) {
+  const [productoSeleccionado, setProductoSeleccionado] = useState('');
+  const [valores, setValores] = useState([]);
+
+  const onSelect = id => {
+    setProductoSeleccionado(id);
+    setValores([]); // limpiar predicciones previas
+  };
+
+  const onBuscar = async () => {
+    if (!productoSeleccionado) return;
+    try {
+      const res = await api.get(`/prediccion/${productoSeleccionado}/`);
+      setValores(res.data.valores);
+    } catch (err) {
+      console.error('Error al predecir stock', err);
+      setValores([]);
+    }
+  };
+
+  // Formatea los valores para Recharts
+  const data = valores.map((v, i) => ({
     name: `Día ${i + 1}`,
     valor: v,
   }));
@@ -27,7 +42,7 @@ export default function PrediccionStock({
     <div className="bg-white rounded-2xl shadow p-6 mb-8">
       <h2 className="text-xl font-semibold mb-4">Predicción de Stock</h2>
 
-      <div className="flex items-center space-x-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 mb-4">
         <select
           className="border border-gray-300 p-2 rounded w-full sm:w-64"
           value={productoSeleccionado}
@@ -49,7 +64,7 @@ export default function PrediccionStock({
       </div>
 
       {data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={250}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />

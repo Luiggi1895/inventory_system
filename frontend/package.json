@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
 
-  "proxy": "http://192.168.1.62:8000",
+  "proxy": "http://localhost:8000",
 
   "scripts": {
     "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider HOST=0.0.0.0 react-scripts start",

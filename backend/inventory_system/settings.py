@@ -1,5 +1,3 @@
-# backend/inventory_system/settings.py
-
 from pathlib import Path
 import os
 
@@ -21,7 +19,6 @@ ALLOWED_HOSTS = [
     '192.168.1.12',
 ]
 
-# Permitir llamadas desde cualquier origen
 CORS_ALLOW_ALL_ORIGINS = True
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -36,13 +33,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Tu app (solo una entrada, usando AppConfig para registrar señales)
+    'inventario.apps.InventarioConfig',
+
     # Terceros
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-
-    # Tu app
-    'inventario',
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -52,7 +49,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 
-    # CORS debe ir antes de CommonMiddleware
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
 
@@ -66,7 +62,6 @@ MIDDLEWARE = [
 # RUTAS PRINCIPALES
 # ──────────────────────────────────────────────────────────────────────────────
 ROOT_URLCONF = 'inventory_system.urls'
-
 WSGI_APPLICATION = 'inventory_system.wsgi.application'
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -75,7 +70,7 @@ WSGI_APPLICATION = 'inventory_system.wsgi.application'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # puedes añadir rutas si usas plantillas a mano
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -107,18 +102,14 @@ USE_I18N      = True
 USE_TZ        = True
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ARCHIVOS ESTÁTICOS (CSS, JS, imágenes públicas)
+# ESTÁTICOS & MEDIA
 # ──────────────────────────────────────────────────────────────────────────────
 STATIC_URL = '/static/'
-
-# ──────────────────────────────────────────────────────────────────────────────
-# ARCHIVOS MEDIA (para QR, uploads, etc.)
-# ──────────────────────────────────────────────────────────────────────────────
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CONFIGURACIÓN REST FRAMEWORK (opcional)
+# REST FRAMEWORK
 # ──────────────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -129,7 +120,5 @@ REST_FRAMEWORK = {
     ),
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# VALOR POR DEFECTO PARA CAMPOS AUTO
-# ──────────────────────────────────────────────────────────────────────────────
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
